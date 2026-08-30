@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Flip Kotoba",
+    "slug": "flip-kotoba",
+    "owner": "maser8983",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.vivekkummahto.flipkotoba",
+      "adaptiveIcon": {
+        "backgroundColor": "#1b2a4e",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Flip Kotoba to access your photos to scan a vocabulary page.",
+          "cameraPermission": "Allow Flip Kotoba to use the camera to photograph a vocabulary page.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#1b2a4e"
+        }
+      ],
+      "@sentry/react-native"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cd802023-d833-4845-86ce-bd75fdf3568d"
+      }
+    }
+  }
+}

@@ -34,7 +34,25 @@ function makeKanji(fields: Partial<Kanji> & Pick<Kanji, 'id' | 'deckId'>): Kanji
   };
 }
 
-function makeWord(fields: Partial<Word> & Pick<Word, 'id' | 'deckId'>): Word {
+function makeWord(fields: {
+  id: number;
+  deckId: number;
+  originDeckId?: number | null;
+  kanji?: string | null;
+  furigana?: string;
+  englishMeaning?: string;
+  exampleSentenceJp?: string | null;
+  exampleSentenceEn?: string | null;
+  boxLevel?: number;
+  rightStreak?: number;
+  nextDueAt?: Date;
+  lastReviewedAt?: Date | null;
+  reverseBoxLevel?: number;
+  reverseRightStreak?: number;
+  reverseNextDueAt?: Date;
+  reverseLastReviewedAt?: Date | null;
+  createdAt?: Date;
+}): Word {
   return {
     id: fields.id,
     deckId: fields.deckId,
@@ -44,10 +62,18 @@ function makeWord(fields: Partial<Word> & Pick<Word, 'id' | 'deckId'>): Word {
     englishMeaning: fields.englishMeaning ?? 'meaning',
     exampleSentenceJp: fields.exampleSentenceJp ?? null,
     exampleSentenceEn: fields.exampleSentenceEn ?? null,
-    boxLevel: fields.boxLevel ?? 1,
-    rightStreak: fields.rightStreak ?? 0,
-    nextDueAt: fields.nextDueAt ?? new Date('2026-02-01T00:00:00.000Z'),
-    lastReviewedAt: fields.lastReviewedAt ?? null,
+    jpToEn: {
+      boxLevel: fields.boxLevel ?? 1,
+      rightStreak: fields.rightStreak ?? 0,
+      nextDueAt: fields.nextDueAt ?? new Date('2026-02-01T00:00:00.000Z'),
+      lastReviewedAt: fields.lastReviewedAt ?? null,
+    },
+    enToJp: {
+      boxLevel: fields.reverseBoxLevel ?? 1,
+      rightStreak: fields.reverseRightStreak ?? 0,
+      nextDueAt: fields.reverseNextDueAt ?? new Date('2026-02-01T00:00:00.000Z'),
+      lastReviewedAt: fields.reverseLastReviewedAt ?? null,
+    },
     createdAt: fields.createdAt ?? new Date('2026-01-01T00:00:00.000Z'),
   };
 }
@@ -69,6 +95,10 @@ describe('backupUseCases.createBackup', () => {
       rightStreak: 10,
       nextDueAt: new Date('2026-03-10T00:00:00.000Z'),
       lastReviewedAt: new Date('2026-02-24T00:00:00.000Z'),
+      reverseBoxLevel: 3,
+      reverseRightStreak: 4,
+      reverseNextDueAt: new Date('2026-03-05T00:00:00.000Z'),
+      reverseLastReviewedAt: new Date('2026-02-20T00:00:00.000Z'),
     }),
   ];
 
@@ -92,6 +122,12 @@ describe('backupUseCases.createBackup', () => {
         rightStreak: 10,
         nextDueAt: '2026-03-10T00:00:00.000Z',
         lastReviewedAt: '2026-02-24T00:00:00.000Z',
+      },
+      reverseSrs: {
+        boxLevel: 3,
+        rightStreak: 4,
+        nextDueAt: '2026-03-05T00:00:00.000Z',
+        lastReviewedAt: '2026-02-20T00:00:00.000Z',
       },
     });
   });
@@ -194,8 +230,13 @@ describe('backupUseCases.restoreBackup', () => {
     const n5Deck = decks.find((deck) => deck.name === 'JLPT N5')!;
     expect(drink.deckId).toBe(memorizedDeck.id);
     expect(drink.originDeckId).toBe(n5Deck.id);
-    expect(drink.boxLevel).toBe(5);
-    expect(drink.nextDueAt).toEqual(new Date('2026-09-20T00:00:00.000Z'));
+    expect(drink.jpToEn.boxLevel).toBe(5);
+    expect(drink.jpToEn.nextDueAt).toEqual(new Date('2026-09-20T00:00:00.000Z'));
+    // v1 files predate the reverse direction — restore treats a missing
+    // reverseSrs the same as null (fresh, box 1, never reviewed).
+    expect(drink.enToJp.boxLevel).toBe(1);
+    expect(drink.enToJp.rightStreak).toBe(0);
+    expect(drink.enToJp.lastReviewedAt).toBeNull();
   });
 
   it('falls back to new-word defaults when the backup has no progress', async () => {
@@ -210,10 +251,10 @@ describe('backupUseCases.restoreBackup', () => {
 
     const { words } = await repo.readAll();
     for (const word of words) {
-      expect(word.boxLevel).toBe(1);
-      expect(word.rightStreak).toBe(0);
-      expect(word.lastReviewedAt).toBeNull();
-      expect(word.nextDueAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(word.jpToEn.boxLevel).toBe(1);
+      expect(word.jpToEn.rightStreak).toBe(0);
+      expect(word.jpToEn.lastReviewedAt).toBeNull();
+      expect(word.jpToEn.nextDueAt.getTime()).toBeGreaterThanOrEqual(before);
     }
   });
 
@@ -262,7 +303,19 @@ describe('backup round trip', () => {
       decks: [makeDeck({ id: 3, name: 'Verbs' }), makeDeck({ id: 8, name: 'Memorized', kind: 'memorized' })],
       words: [
         makeWord({ id: 1, deckId: 3, kanji: '書く', furigana: 'かく', englishMeaning: 'to write', boxLevel: 2, rightStreak: 3 }),
-        makeWord({ id: 2, deckId: 8, originDeckId: 3, furigana: 'よむ', englishMeaning: 'to read', boxLevel: 5, rightStreak: 10, lastReviewedAt: new Date('2026-05-05T00:00:00.000Z') }),
+        makeWord({
+          id: 2,
+          deckId: 8,
+          originDeckId: 3,
+          furigana: 'よむ',
+          englishMeaning: 'to read',
+          boxLevel: 5,
+          rightStreak: 10,
+          lastReviewedAt: new Date('2026-05-05T00:00:00.000Z'),
+          reverseBoxLevel: 3,
+          reverseRightStreak: 6,
+          reverseLastReviewedAt: new Date('2026-05-04T00:00:00.000Z'),
+        }),
       ],
     });
     const target = createFakeBackupRepository();
@@ -278,9 +331,12 @@ describe('backup round trip', () => {
 
     const read = restored.words.find((word) => word.furigana === 'よむ')!;
     expect(read.englishMeaning).toBe('to read');
-    expect(read.boxLevel).toBe(5);
-    expect(read.rightStreak).toBe(10);
-    expect(read.lastReviewedAt).toEqual(new Date('2026-05-05T00:00:00.000Z'));
+    expect(read.jpToEn.boxLevel).toBe(5);
+    expect(read.jpToEn.rightStreak).toBe(10);
+    expect(read.jpToEn.lastReviewedAt).toEqual(new Date('2026-05-05T00:00:00.000Z'));
+    expect(read.enToJp.boxLevel).toBe(3);
+    expect(read.enToJp.rightStreak).toBe(6);
+    expect(read.enToJp.lastReviewedAt).toEqual(new Date('2026-05-04T00:00:00.000Z'));
     expect(restored.decks.find((deck) => deck.id === read.originDeckId)?.name).toBe('Verbs');
   });
 

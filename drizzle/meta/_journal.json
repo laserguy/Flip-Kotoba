@@ -15,6 +15,13 @@
       "when": 1788085082269,
       "tag": "0001_clammy_lila_cheney",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789573050867,
+      "tag": "0002_slippery_jocasta",
+      "breakpoints": true
     }
   ]
 }

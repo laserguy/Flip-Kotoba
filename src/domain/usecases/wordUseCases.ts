@@ -1,7 +1,8 @@
 import type { DeckRepository } from '../repositories/DeckRepository';
 import type { WordRepository } from '../repositories/WordRepository';
-import type { WordInput } from '../entities/Word';
+import type { ReviewDirection, WordInput } from '../entities/Word';
 import { applySwipe } from '../srs';
+import { MEMORIZE_STREAK_THRESHOLD } from '../constants';
 
 function normalize(input: WordInput): WordInput {
   const kanji = input.kanji?.trim() || null;
@@ -22,27 +23,49 @@ function normalize(input: WordInput): WordInput {
   };
 }
 
+function otherDirection(direction: ReviewDirection): ReviewDirection {
+  return direction === 'jpToEn' ? 'enToJp' : 'jpToEn';
+}
+
 export function createWordUseCases(wordRepository: WordRepository, deckRepository: DeckRepository) {
   return {
     createWord: async (input: WordInput) => wordRepository.create(normalize(input)),
     updateWord: async (id: number, input: WordInput) => wordRepository.update(id, normalize(input)),
     deleteWord: (id: number) => wordRepository.delete(id),
     getWordById: (id: number) => wordRepository.findById(id),
-    getDueWords: (deckId: number, now: Date = new Date()) => wordRepository.getDue(deckId, now),
+    getDueWords: (deckId: number, direction: ReviewDirection, now: Date = new Date()) =>
+      wordRepository.getDue(deckId, direction, now),
 
-    recordSwipe: async (wordId: number, direction: 'right' | 'left', now: Date = new Date()) => {
+    recordSwipe: async (
+      wordId: number,
+      direction: ReviewDirection,
+      swipeDirection: 'right' | 'left',
+      now: Date = new Date(),
+    ) => {
       const current = await wordRepository.findById(wordId);
       if (!current) throw new Error(`Word ${wordId} not found`);
 
-      const outcome = applySwipe(current, direction, now);
-      const word = await wordRepository.updateReviewState(wordId, {
+      const wasMastered = current[direction].rightStreak >= MEMORIZE_STREAK_THRESHOLD;
+      const outcome = applySwipe(current[direction], swipeDirection, now);
+      const word = await wordRepository.updateReviewState(wordId, direction, {
         boxLevel: outcome.boxLevel,
         rightStreak: outcome.rightStreak,
         nextDueAt: outcome.nextDueAt,
         lastReviewedAt: now,
       });
 
-      return { word, readyToMemorize: outcome.readyToMemorize };
+      const thisMastered = outcome.readyToMemorize;
+      const otherMastered = word[otherDirection(direction)].rightStreak >= MEMORIZE_STREAK_THRESHOLD;
+
+      return {
+        word,
+        // Only once both directions have independently earned it.
+        readyToMemorize: thisMastered && otherMastered,
+        // Fires once, the moment this direction crosses the threshold while its
+        // sibling hasn't yet — used to show a brief, non-blocking acknowledgment
+        // instead of the full memorize prompt.
+        justMasteredDirection: !wasMastered && thisMastered && !otherMastered ? direction : null,
+      };
     },
 
     moveToMemorized: async (wordId: number) => {

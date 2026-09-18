@@ -58,6 +58,10 @@ async function replaceAll(
       rightStreak: word.rightStreak,
       nextDueAt: word.nextDueAt,
       lastReviewedAt: word.lastReviewedAt,
+      reverseBoxLevel: word.reverseBoxLevel,
+      reverseRightStreak: word.reverseRightStreak,
+      reverseNextDueAt: word.reverseNextDueAt,
+      reverseLastReviewedAt: word.reverseLastReviewedAt,
     });
   }
 
@@ -101,6 +105,10 @@ function restoreWord(fields: Partial<RestoreWord> & Pick<RestoreWord, 'tempDeckI
     rightStreak: fields.rightStreak ?? 0,
     nextDueAt: fields.nextDueAt ?? new Date('2026-02-01T00:00:00.000Z'),
     lastReviewedAt: fields.lastReviewedAt ?? null,
+    reverseBoxLevel: fields.reverseBoxLevel ?? 1,
+    reverseRightStreak: fields.reverseRightStreak ?? 0,
+    reverseNextDueAt: fields.reverseNextDueAt ?? new Date('2026-02-01T00:00:00.000Z'),
+    reverseLastReviewedAt: fields.reverseLastReviewedAt ?? null,
   };
 }
 

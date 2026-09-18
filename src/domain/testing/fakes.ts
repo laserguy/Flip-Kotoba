@@ -1,13 +1,21 @@
 import type { Deck } from '../entities/Deck';
 import type { DeckRepository } from '../repositories/DeckRepository';
-import type { Word, WordInput } from '../entities/Word';
+import type { ReviewDirection, Word, WordInput, WordReviewState } from '../entities/Word';
 import type { Kanji, KanjiInput } from '../entities/Kanji';
 import type { ReviewState, WordRepository } from '../repositories/WordRepository';
 import type { KanjiRepository } from '../repositories/KanjiRepository';
 import type { KanjiPageScanner, ScannedKanji } from '../repositories/KanjiPageScanner';
 import type { KanjiDictionaryEntry, KanjiDictionaryService } from '../repositories/KanjiDictionaryService';
 import type { BackupRepository, RestoreDeck, RestoreKanji, RestoreWord } from '../repositories/BackupRepository';
-import { MEMORIZED_DECK_NAME, MEMORIZED_KANJI_DECK_NAME } from '../constants';
+import { MEMORIZED_DECK_NAME, MEMORIZED_KANJI_DECK_NAME, MEMORIZE_STREAK_THRESHOLD } from '../constants';
+
+function freshReviewState(): WordReviewState {
+  return { boxLevel: 1, rightStreak: 0, nextDueAt: new Date(), lastReviewedAt: null };
+}
+
+function otherDirection(direction: ReviewDirection): ReviewDirection {
+  return direction === 'jpToEn' ? 'enToJp' : 'jpToEn';
+}
 
 // In-memory stand-ins for DeckRepository/WordRepository, used only in tests.
 // They exist because the domain/use-case layer depends on these interfaces,
@@ -68,10 +76,8 @@ function toWordRow(id: number, input: WordInput): Word {
     englishMeaning: input.englishMeaning,
     exampleSentenceJp: input.exampleSentenceJp ?? null,
     exampleSentenceEn: input.exampleSentenceEn ?? null,
-    boxLevel: 1,
-    rightStreak: 0,
-    nextDueAt: new Date(),
-    lastReviewedAt: null,
+    jpToEn: freshReviewState(),
+    enToJp: freshReviewState(),
     createdAt: new Date(),
   };
 }
@@ -110,12 +116,23 @@ export function createFakeWordRepository(seed: Word[] = []): WordRepository {
     async findById(id) {
       return words.find((w) => w.id === id) ?? null;
     },
-    async getDue(deckId, now) {
-      return words.filter((w) => w.deckId === deckId && w.nextDueAt <= now);
+    async getDue(deckId, direction, now) {
+      const other = otherDirection(direction);
+      return words.filter((w) => {
+        if (w.deckId !== deckId) return false;
+        if (w[direction].nextDueAt > now) return false;
+        // Paused: this direction is already mastered and the other isn't yet —
+        // no point drilling a direction you've already proven. Once both are
+        // mastered, pausing stops applying so "Not yet" on the memorize prompt
+        // keeps resurfacing the word instead of hiding it forever.
+        const paused =
+          w[direction].rightStreak >= MEMORIZE_STREAK_THRESHOLD && w[other].rightStreak < MEMORIZE_STREAK_THRESHOLD;
+        return !paused;
+      });
     },
-    async updateReviewState(id, state: ReviewState) {
+    async updateReviewState(id, direction, state: ReviewState) {
       const word = getOrThrow(id);
-      Object.assign(word, state);
+      word[direction] = { ...state };
       return word;
     },
     async moveToMemorized(id, memorizedDeckId, originDeckId) {
@@ -128,9 +145,8 @@ export function createFakeWordRepository(seed: Word[] = []): WordRepository {
       const word = getOrThrow(id);
       word.deckId = originDeckId;
       word.originDeckId = null;
-      word.boxLevel = 1;
-      word.rightStreak = 0;
-      word.nextDueAt = new Date();
+      word.jpToEn = freshReviewState();
+      word.enToJp = freshReviewState();
       return word;
     },
   };
@@ -264,10 +280,18 @@ export function createFakeBackupRepository(
         englishMeaning: word.englishMeaning,
         exampleSentenceJp: word.exampleSentenceJp,
         exampleSentenceEn: word.exampleSentenceEn,
-        boxLevel: word.boxLevel,
-        rightStreak: word.rightStreak,
-        nextDueAt: word.nextDueAt,
-        lastReviewedAt: word.lastReviewedAt,
+        jpToEn: {
+          boxLevel: word.boxLevel,
+          rightStreak: word.rightStreak,
+          nextDueAt: word.nextDueAt,
+          lastReviewedAt: word.lastReviewedAt,
+        },
+        enToJp: {
+          boxLevel: word.reverseBoxLevel,
+          rightStreak: word.reverseRightStreak,
+          nextDueAt: word.reverseNextDueAt,
+          lastReviewedAt: word.reverseLastReviewedAt,
+        },
         createdAt: new Date(),
       }));
 

@@ -4,7 +4,8 @@ import type { DeckContent, DeckKind } from './Deck';
 // refuses any file whose formatVersion is higher than this.
 //   v1 → words only
 //   v2 → adds a `kanji` array and `content` on decks
-export const BACKUP_FORMAT_VERSION = 2;
+//   v3 → adds `reverseSrs` on words (the English→Japanese review direction)
+export const BACKUP_FORMAT_VERSION = 3;
 
 export interface BackupSrsState {
   boxLevel: number;
@@ -35,6 +36,9 @@ export interface BackupWordEntry {
   // null when the export excluded review progress — restore falls back to
   // new-item defaults (box 1, streak 0, due now).
   srs: BackupSrsState | null;
+  // The English→Japanese direction's progress. Absent in v1/v2 files — restore
+  // treats that the same as null (fresh, never reviewed in that direction).
+  reverseSrs?: BackupSrsState | null;
 }
 
 export interface BackupKanjiEntry {

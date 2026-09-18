@@ -124,6 +124,7 @@ function parseSnapshot(raw: unknown): BackupSnapshot {
       exampleSentenceJp: requireNullableString(entry.exampleSentenceJp, `words[${index}].exampleSentenceJp`),
       exampleSentenceEn: requireNullableString(entry.exampleSentenceEn, `words[${index}].exampleSentenceEn`),
       srs: parseSrs(entry.srs, `words[${index}].srs`),
+      reverseSrs: parseSrs(entry.reverseSrs, `words[${index}].reverseSrs`),
     };
   });
 
@@ -180,6 +181,16 @@ function srsFieldsFrom(srs: BackupSrsState | null) {
   };
 }
 
+function reverseSrsFieldsFrom(srs: BackupSrsState | null) {
+  const fields = srsFieldsFrom(srs);
+  return {
+    reverseBoxLevel: fields.boxLevel,
+    reverseRightStreak: fields.rightStreak,
+    reverseNextDueAt: fields.nextDueAt,
+    reverseLastReviewedAt: fields.lastReviewedAt,
+  };
+}
+
 export function createBackupUseCases(backupRepository: BackupRepository) {
   return {
     createBackup: async (options: { includeSrsProgress: boolean }): Promise<BackupSnapshot> => {
@@ -214,7 +225,8 @@ export function createBackupUseCases(backupRepository: BackupRepository) {
           englishMeaning: word.englishMeaning,
           exampleSentenceJp: word.exampleSentenceJp,
           exampleSentenceEn: word.exampleSentenceEn,
-          srs: srsFor(word),
+          srs: srsFor(word.jpToEn),
+          reverseSrs: srsFor(word.enToJp),
         })),
         kanji: kanji.map((entry) => ({
           deckId: entry.deckId,
@@ -251,6 +263,7 @@ export function createBackupUseCases(backupRepository: BackupRepository) {
         exampleSentenceJp: word.exampleSentenceJp,
         exampleSentenceEn: word.exampleSentenceEn,
         ...srsFieldsFrom(word.srs),
+        ...reverseSrsFieldsFrom(word.reverseSrs ?? null),
       }));
 
       const restoreKanji: RestoreKanji[] = snapshot.kanji.map((entry) => ({

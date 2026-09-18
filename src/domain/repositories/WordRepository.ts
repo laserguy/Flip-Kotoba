@@ -1,4 +1,4 @@
-import type { Word, WordInput } from '../entities/Word';
+import type { ReviewDirection, Word, WordInput } from '../entities/Word';
 
 export interface ReviewState {
   boxLevel: number;
@@ -12,8 +12,11 @@ export interface WordRepository {
   update(id: number, input: WordInput): Promise<Word>;
   delete(id: number): Promise<void>;
   findById(id: number): Promise<Word | null>;
-  getDue(deckId: number, now: Date): Promise<Word[]>;
-  updateReviewState(id: number, state: ReviewState): Promise<Word>;
+  // Due in the given direction: its nextDueAt has passed, and it isn't paused
+  // waiting on the other direction to catch up (see recordSwipe in
+  // wordUseCases.ts for the pause rule).
+  getDue(deckId: number, direction: ReviewDirection, now: Date): Promise<Word[]>;
+  updateReviewState(id: number, direction: ReviewDirection, state: ReviewState): Promise<Word>;
   moveToMemorized(id: number, memorizedDeckId: number, originDeckId: number): Promise<Word>;
   revertFromMemorized(id: number, originDeckId: number): Promise<Word>;
 }

@@ -24,6 +24,10 @@ export interface RestoreWord {
   rightStreak: number;
   nextDueAt: Date;
   lastReviewedAt: Date | null;
+  reverseBoxLevel: number;
+  reverseRightStreak: number;
+  reverseNextDueAt: Date;
+  reverseLastReviewedAt: Date | null;
 }
 
 export interface RestoreKanji {

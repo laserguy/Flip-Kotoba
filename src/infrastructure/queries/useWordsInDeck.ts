@@ -3,6 +3,7 @@ import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 import { db } from '../db/client';
 import { words } from '../db/schema';
 import type { Word } from '../../domain/entities/Word';
+import { wordRowToDomain } from '../repositories/DrizzleWordRepository';
 
 export type WordSort = 'alphabetical' | 'created' | 'lastReviewed';
 
@@ -21,5 +22,5 @@ function wordsInDeckQuery(deckId: number, sort: WordSort) {
 // instead of going through WordRepository.
 export function useWordsInDeck(deckId: number, sort: WordSort): Word[] | undefined {
   const { data } = useLiveQuery(wordsInDeckQuery(deckId, sort), [deckId, sort]);
-  return data;
+  return data?.map(wordRowToDomain);
 }

@@ -1,5 +1,5 @@
 import { db } from '../db/client';
-import { decks, kanji, words, type DeckRow, type KanjiRow, type WordRow } from '../db/schema';
+import { decks, kanji, words, type DeckRow, type KanjiRow } from '../db/schema';
 import type { Deck } from '../../domain/entities/Deck';
 import type { Word } from '../../domain/entities/Word';
 import type { Kanji } from '../../domain/entities/Kanji';
@@ -9,6 +9,7 @@ import type {
   RestoreKanji,
   RestoreWord,
 } from '../../domain/repositories/BackupRepository';
+import { wordRowToDomain } from './DrizzleWordRepository';
 
 function deckToDomain(row: DeckRow): Deck {
   return {
@@ -17,24 +18,6 @@ function deckToDomain(row: DeckRow): Deck {
     description: row.description,
     kind: row.kind,
     content: row.content,
-    createdAt: row.createdAt,
-  };
-}
-
-function wordToDomain(row: WordRow): Word {
-  return {
-    id: row.id,
-    deckId: row.deckId,
-    originDeckId: row.originDeckId,
-    kanji: row.kanji,
-    furigana: row.furigana,
-    englishMeaning: row.englishMeaning,
-    exampleSentenceJp: row.exampleSentenceJp,
-    exampleSentenceEn: row.exampleSentenceEn,
-    boxLevel: row.boxLevel,
-    rightStreak: row.rightStreak,
-    nextDueAt: row.nextDueAt,
-    lastReviewedAt: row.lastReviewedAt,
     createdAt: row.createdAt,
   };
 }
@@ -66,7 +49,7 @@ export class DrizzleBackupRepository implements BackupRepository {
     ]);
     return {
       decks: deckRows.map(deckToDomain),
-      words: wordRows.map(wordToDomain),
+      words: wordRows.map(wordRowToDomain),
       kanji: kanjiRows.map(kanjiToDomain),
     };
   }
@@ -114,6 +97,10 @@ export class DrizzleBackupRepository implements BackupRepository {
           rightStreak: word.rightStreak,
           nextDueAt: word.nextDueAt,
           lastReviewedAt: word.lastReviewedAt,
+          reverseBoxLevel: word.reverseBoxLevel,
+          reverseRightStreak: word.reverseRightStreak,
+          reverseNextDueAt: word.reverseNextDueAt,
+          reverseLastReviewedAt: word.reverseLastReviewedAt,
         });
       }
 

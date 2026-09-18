@@ -44,11 +44,12 @@ export const words = sqliteTable('words', {
   exampleSentenceJp: text('example_sentence_jp'),
   exampleSentenceEn: text('example_sentence_en'),
 
-  // --- SRS review state ---
+  // --- SRS review state: Japanese → English direction ---
   // 1-5, interval grows with box level; resets to 1 on a left swipe.
   boxLevel: integer('box_level').notNull().default(1),
-  // Consecutive right swipes; resets to 0 on any left swipe. Hitting 10
-  // triggers the automatic move into the memorized deck.
+  // Consecutive right swipes; resets to 0 on any left swipe. Hitting 10 marks
+  // this direction mastered — the word only moves to the memorized deck once
+  // both directions have independently hit 10.
   rightStreak: integer('right_streak').notNull().default(0),
   // New words are due immediately (defaults to now).
   nextDueAt: integer('next_due_at', { mode: 'timestamp' })
@@ -56,14 +57,27 @@ export const words = sqliteTable('words', {
     .default(sql`(unixepoch())`),
   lastReviewedAt: integer('last_reviewed_at', { mode: 'timestamp' }),
 
+  // --- SRS review state: English → Japanese direction ---
+  // Mirrors the four columns above but tracks the reverse direction
+  // independently, so a word can be strong one way and weak the other.
+  reverseBoxLevel: integer('reverse_box_level').notNull().default(1),
+  reverseRightStreak: integer('reverse_right_streak').notNull().default(0),
+  reverseNextDueAt: integer('reverse_next_due_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  reverseLastReviewedAt: integer('reverse_last_reviewed_at', { mode: 'timestamp' }),
+
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
 }, (table) => [
   index('words_deck_id_idx').on(table.deckId),
   index('words_deck_due_idx').on(table.deckId, table.nextDueAt),
+  index('words_deck_reverse_due_idx').on(table.deckId, table.reverseNextDueAt),
   check('words_box_level_range', sql`${table.boxLevel} between 1 and 5`),
   check('words_right_streak_range', sql`${table.rightStreak} between 0 and 10`),
+  check('words_reverse_box_level_range', sql`${table.reverseBoxLevel} between 1 and 5`),
+  check('words_reverse_right_streak_range', sql`${table.reverseRightStreak} between 0 and 10`),
   // If a sentence is given in Japanese, its English translation is mandatory.
   check(
     'words_sentence_translation_pairing',

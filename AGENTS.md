@@ -1,5 +1,7 @@
 # FlashCards App — Agent Instructions
 
+For a structural map of the current codebase (entities, use cases, DB schema, layer wiring), see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
 ## Stack
 - Expo SDK 54 (React Native), TypeScript. Read versioned docs at https://docs.expo.dev/versions/v54.0.0/ before relying on API behavior — do not assume the latest docs apply.
 - **Do not upgrade the Expo SDK without checking Expo Go's currently-supported version first.** The Expo Go app from the Play/App Store is frozen at SDK 54 as of when this was written (Google/Apple no longer ship every SDK release to the store apps). Upgrading past what Expo Go supports breaks `npx expo start` testing on a real device without a custom dev build. This already happened once in this project's history — don't rediscover it.
@@ -35,6 +37,9 @@ This project follows Robert C. Martin's Clean Code and Clean Architecture, **plu
 - Run `npm test` (and `npx tsc --noEmit`) before considering a change finished, not just when something looks suspicious.
 
 When adding a feature: define the domain entity/port first, write the use case against the interface with a test, then implement the infrastructure adapter last.
+
+### Keeping the architecture doc current
+- **A change that adds or removes a domain entity, port, use case, infrastructure adapter, or schema table updates the relevant section of `docs/ARCHITECTURE.md` in the same change, not as a follow-up.** Same binding-by-default rule as the testing discipline above — the doc is only useful if it doesn't drift from what's actually in the code.
 
 ## Known gotchas (already debugged once here — don't rediscover)
 - **Drizzle's `useLiveQuery` only re-subscribes to changes on a query's primary `FROM` table.** A query that aggregates from a *different* table via a raw SQL subquery (like the deck word-counts pulling from `words` while selecting `FROM decks`) will never auto-refresh when that other table changes. See `useDecksWithCounts.ts` for the manual multi-table-watch workaround using `addDatabaseChangeListener` directly.

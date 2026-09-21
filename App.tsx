@@ -14,6 +14,7 @@ import ErrorBoundary from './src/components/ErrorBoundary';
 import { darkNavigationTheme, lightNavigationTheme } from './src/theme/navigationTheme';
 import { ThemeProvider, useTheme } from './src/theme/useTheme';
 import { hasSeenOnboarding } from './src/infrastructure/services/onboardingStore';
+import { migrateKanjiReadingsToHiragana } from './src/infrastructure/services/kanjiReadingsMigration';
 import { initCrashReporting, reportError } from './src/infrastructure/services/crashReporting';
 
 initCrashReporting();
@@ -38,12 +39,22 @@ function AppContent() {
   const { success, error } = useMigrations(db, migrations);
   const { colors, scheme, isHydrated } = useTheme();
   const [initialRoute, setInitialRoute] = useState<'DeckList' | 'Onboarding' | null>(null);
+  const [kanjiReadingsMigrated, setKanjiReadingsMigrated] = useState(false);
 
   useEffect(() => {
     hasSeenOnboarding().then((seen) => setInitialRoute(seen ? 'DeckList' : 'Onboarding'));
   }, []);
 
-  const ready = success && isHydrated && initialRoute !== null;
+  // Backfills any kanji saved before readings were normalized to hiragana.
+  // Runs once the schema migrations above have created the table.
+  useEffect(() => {
+    if (!success) return;
+    migrateKanjiReadingsToHiragana()
+      .catch((migrationError) => reportError(migrationError instanceof Error ? migrationError : new Error(String(migrationError))))
+      .finally(() => setKanjiReadingsMigrated(true));
+  }, [success]);
+
+  const ready = success && isHydrated && initialRoute !== null && kanjiReadingsMigrated;
 
   return (
     <>

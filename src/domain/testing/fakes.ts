@@ -39,12 +39,23 @@ export function createFakeDeckRepository(seed: Deck[] = []): DeckRepository {
       decks.push(deck);
       return deck;
     },
+    async update(id, input) {
+      const deck = decks.find((d) => d.id === id);
+      if (!deck) throw new Error(`Deck ${id} not found`);
+      deck.name = input.name;
+      deck.description = input.description;
+      return deck;
+    },
     async delete(id) {
       const index = decks.findIndex((d) => d.id === id);
       if (index !== -1) decks.splice(index, 1);
     },
     async findById(id) {
       return decks.find((d) => d.id === id) ?? null;
+    },
+    async findByName(name, content) {
+      const target = name.trim().toLowerCase();
+      return decks.find((d) => d.content === content && d.name.trim().toLowerCase() === target) ?? null;
     },
     async getMemorized(content) {
       return decks.find((d) => d.kind === 'memorized' && d.content === content) ?? null;

@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../db/client';
 import { decks, type DeckRow } from '../db/schema';
 import type { Deck, DeckContent } from '../../domain/entities/Deck';
@@ -25,12 +25,30 @@ export class DrizzleDeckRepository implements DeckRepository {
     return toDomain(row);
   }
 
+  async update(id: number, input: { name: string; description: string | null }): Promise<Deck> {
+    const [row] = await db
+      .update(decks)
+      .set({ name: input.name, description: input.description })
+      .where(eq(decks.id, id))
+      .returning();
+    return toDomain(row);
+  }
+
   async delete(id: number): Promise<void> {
     await db.delete(decks).where(eq(decks.id, id));
   }
 
   async findById(id: number): Promise<Deck | null> {
     const [row] = await db.select().from(decks).where(eq(decks.id, id)).limit(1);
+    return row ? toDomain(row) : null;
+  }
+
+  async findByName(name: string, content: DeckContent): Promise<Deck | null> {
+    const [row] = await db
+      .select()
+      .from(decks)
+      .where(and(eq(sql`lower(${decks.name})`, name.toLowerCase()), eq(decks.content, content)))
+      .limit(1);
     return row ? toDomain(row) : null;
   }
 

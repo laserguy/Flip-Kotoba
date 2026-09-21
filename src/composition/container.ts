@@ -36,7 +36,7 @@ const visionModel = new MultiProviderVisionModel({
 const vocabPageScanner = new VisionVocabPageScanner(visionModel);
 const kanjiPageScanner = new VisionKanjiPageScanner(visionModel);
 
-export const { createDeck, deleteDeck } = createDeckUseCases(deckRepository);
+export const { createDeck, getDeck, updateDeck, deleteDeck } = createDeckUseCases(deckRepository);
 
 export const {
   createWord,

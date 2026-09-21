@@ -35,7 +35,12 @@ export default function RootNavigator({ initialRouteName }: { initialRouteName: 
         name="DeckForm"
         component={DeckFormScreen}
         options={({ route }) => ({
-          title: route.params.content === 'kanji' ? 'New Kanji Deck' : 'New Deck',
+          title:
+            route.params.deckId !== undefined
+              ? 'Edit Deck'
+              : route.params.content === 'kanji'
+                ? 'New Kanji Deck'
+                : 'New Deck',
           presentation: 'modal',
         })}
       />

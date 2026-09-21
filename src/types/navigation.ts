@@ -4,7 +4,7 @@ export type RootStackParamList = {
   Onboarding: { mode: 'first-launch' | 'replay' };
   DeckList: undefined;
   DeckDetail: { deckId: number; deckName: string; deckKind: 'normal' | 'memorized'; deckContent: DeckContent };
-  DeckForm: { content: DeckContent };
+  DeckForm: { content: DeckContent; deckId?: number };
   WordForm: { deckId: number; wordId?: number };
   WordDetail: { wordId: number };
   Settings: undefined;

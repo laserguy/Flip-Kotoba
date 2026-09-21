@@ -61,8 +61,9 @@ export default function DeckListScreen({ navigation }: Props) {
     ]);
   };
 
-  const onMorePress = (id: number, name: string) => {
+  const onMorePress = (id: number, name: string, deckContent: DeckContent) => {
     Alert.alert(name, undefined, [
+      { text: 'Rename Deck', onPress: () => navigation.navigate('DeckForm', { content: deckContent, deckId: id }) },
       { text: 'Delete Deck', style: 'destructive', onPress: () => confirmDelete(id, name) },
       { text: 'Cancel', style: 'cancel' },
     ]);
@@ -128,7 +129,11 @@ export default function DeckListScreen({ navigation }: Props) {
                   </View>
                 )}
               </View>
-              <Pressable onPress={() => onMorePress(item.id, item.name)} hitSlop={12} style={styles.moreButton}>
+              <Pressable
+                onPress={() => onMorePress(item.id, item.name, item.content)}
+                hitSlop={12}
+                style={styles.moreButton}
+              >
                 <Text style={styles.moreButtonText}>⋮</Text>
               </Pressable>
             </Pressable>

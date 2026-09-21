@@ -2,6 +2,7 @@ import type { DeckRepository } from '../repositories/DeckRepository';
 import type { KanjiRepository } from '../repositories/KanjiRepository';
 import type { KanjiInput } from '../entities/Kanji';
 import { applySwipe } from '../srs';
+import { toHiragana } from '../kana';
 
 function cleanList(values: string[]): string[] {
   const seen = new Set<string>();
@@ -28,8 +29,11 @@ function normalize(input: KanjiInput): KanjiInput {
   return {
     deckId: input.deckId,
     character,
-    onReadings: cleanList(input.onReadings),
-    kunReadings: cleanList(input.kunReadings),
+    // Every reading is stored in hiragana, regardless of source — this is the
+    // last checkpoint before persistence, in case a caller other than the scan
+    // flow ever creates a kanji directly with katakana readings.
+    onReadings: cleanList(input.onReadings.map(toHiragana)),
+    kunReadings: cleanList(input.kunReadings.map(toHiragana)),
     meanings: cleanList(input.meanings),
     exampleWords: input.exampleWords
       .map((word) => ({ japanese: word.japanese.trim(), english: word.english.trim() }))

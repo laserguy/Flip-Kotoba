@@ -32,7 +32,8 @@ describe('kanjiLookupUseCases.fillKanjiGaps', () => {
 
     const filled = await fillKanjiGaps(emptyScan);
 
-    expect(filled.onReadings).toEqual(['スイ']);
+    // The dictionary API returns on'yomi in katakana; the app always displays hiragana.
+    expect(filled.onReadings).toEqual(['すい']);
     expect(filled.kunReadings).toEqual(['みず', 'みず-']);
     expect(filled.meanings).toEqual(['water', 'liquid']);
     expect(filled.exampleWords).toEqual([
@@ -52,7 +53,7 @@ describe('kanjiLookupUseCases.fillKanjiGaps', () => {
 
     expect(filled.kunReadings).toEqual(['みず']); // kept
     expect(filled.exampleWords).toEqual([{ japanese: '水星', english: 'Mercury' }]); // kept
-    expect(filled.onReadings).toEqual(['スイ']); // filled
+    expect(filled.onReadings).toEqual(['すい']); // filled
     expect(filled.meanings).toEqual(['water', 'liquid']); // filled
   });
 
@@ -68,7 +69,7 @@ describe('kanjiLookupUseCases.fillKanjiGaps', () => {
 
     const complete: ScannedKanji = {
       character: '水',
-      onReadings: ['スイ'],
+      onReadings: ['すい'],
       kunReadings: ['みず'],
       meanings: ['water'],
       exampleWords: [{ japanese: '水曜日', english: 'Wednesday' }],

@@ -31,10 +31,18 @@ describe('kanjiUseCases.createKanji', () => {
       ],
     });
 
-    expect(kanji.onReadings).toEqual(['スイ']);
+    expect(kanji.onReadings).toEqual(['すい']);
     expect(kanji.kunReadings).toEqual(['みず']);
     expect(kanji.meanings).toEqual(['water', 'flood']);
     expect(kanji.exampleWords).toEqual([{ japanese: '水曜日', english: 'Wednesday' }]);
+  });
+
+  it('converts katakana readings to hiragana', async () => {
+    const { createKanji } = setup();
+    const kanji = await createKanji({ ...baseInput, onReadings: ['スイ'], kunReadings: ['ミズ'] });
+
+    expect(kanji.onReadings).toEqual(['すい']);
+    expect(kanji.kunReadings).toEqual(['みず']);
   });
 
   it('rejects an entry that is not exactly one character', async () => {

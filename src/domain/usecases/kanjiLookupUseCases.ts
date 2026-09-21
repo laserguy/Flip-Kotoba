@@ -1,5 +1,6 @@
 import type { KanjiDictionaryService } from '../repositories/KanjiDictionaryService';
 import type { ScannedKanji } from '../repositories/KanjiPageScanner';
+import { toHiragana } from '../kana';
 
 const MAX_EXAMPLE_WORDS = 2;
 
@@ -22,8 +23,11 @@ export function createKanjiLookupUseCases(dictionary: KanjiDictionaryService) {
 
       return {
         character: scanned.character,
-        onReadings: scanned.onReadings.length > 0 ? scanned.onReadings : entry.onReadings,
-        kunReadings: scanned.kunReadings.length > 0 ? scanned.kunReadings : entry.kunReadings,
+        // The dictionary API returns on'yomi in katakana; the scan may already be
+        // hiragana (see kanjiScanUseCases) — normalize either way so the result
+        // is consistent regardless of which source filled the field.
+        onReadings: (scanned.onReadings.length > 0 ? scanned.onReadings : entry.onReadings).map(toHiragana),
+        kunReadings: (scanned.kunReadings.length > 0 ? scanned.kunReadings : entry.kunReadings).map(toHiragana),
         meanings: scanned.meanings.length > 0 ? scanned.meanings : entry.meanings,
         exampleWords:
           scanned.exampleWords.length > 0

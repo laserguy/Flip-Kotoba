@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
-import { createDeck } from '../composition/container';
+import { createDeck, getDeck, updateDeck } from '../composition/container';
 import { DECK_NAME_MAX_LENGTH } from '../domain/constants';
 import { useTheme } from '../theme/useTheme';
 import type { ThemeColors } from '../theme/tokens';
@@ -11,26 +11,51 @@ import type { ThemeColors } from '../theme/tokens';
 type Props = NativeStackScreenProps<RootStackParamList, 'DeckForm'>;
 
 export default function DeckFormScreen({ route, navigation }: Props) {
-  const { content } = route.params;
+  const { content, deckId } = route.params;
+  const isEditing = deckId !== undefined;
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  useEffect(() => {
+    if (deckId === undefined) return;
+    getDeck(deckId).then((deck) => {
+      if (deck) {
+        setName(deck.name);
+        setDescription(deck.description ?? '');
+      }
+      setLoading(false);
+    });
+  }, [deckId]);
+
   const trimmedName = name.trim();
-  const canSave = trimmedName.length > 0 && trimmedName.length <= DECK_NAME_MAX_LENGTH && !saving;
+  const canSave = trimmedName.length > 0 && trimmedName.length <= DECK_NAME_MAX_LENGTH && !saving && !loading;
 
   const onSave = async () => {
     if (!canSave) return;
     setSaving(true);
     try {
-      await createDeck({ name: trimmedName, description: description.trim() || null, content });
+      if (deckId !== undefined) {
+        await updateDeck(deckId, { name: trimmedName, description: description.trim() || null });
+      } else {
+        await createDeck({ name: trimmedName, description: description.trim() || null, content });
+      }
       navigation.goBack();
+    } catch (error) {
+      Alert.alert('Could not save', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <ActivityIndicator style={styles.flex} size="large" color={colors.accent} />
+    );
+  }
 
   return (
     <KeyboardAwareScrollView
@@ -63,7 +88,7 @@ export default function DeckFormScreen({ route, navigation }: Props) {
       />
 
       <Pressable style={[styles.saveButton, !canSave && styles.saveButtonDisabled]} onPress={onSave} disabled={!canSave}>
-        <Text style={styles.saveButtonText}>Create Deck</Text>
+        <Text style={styles.saveButtonText}>{isEditing ? 'Save Changes' : 'Create Deck'}</Text>
       </Pressable>
     </KeyboardAwareScrollView>
   );

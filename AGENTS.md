@@ -40,6 +40,13 @@ When adding a feature: define the domain entity/port first, write the use case a
 
 ### Keeping the architecture doc current
 - **A change that adds or removes a domain entity, port, use case, infrastructure adapter, or schema table updates the relevant section of `docs/ARCHITECTURE.md` in the same change, not as a follow-up.** Same binding-by-default rule as the testing discipline above — the doc is only useful if it doesn't drift from what's actually in the code.
+- **`docs/docs.test.ts` enforces this as part of `npm test`.** It fails when:
+  - a source module under `src/domain`, `src/infrastructure`, `src/screens`, `src/hooks` or `src/components`, or a schema table, isn't named in `docs/ARCHITECTURE.md`
+  - a doc references a path that doesn't exist
+  - a quoted domain constant (box intervals, streak threshold, deck-name limit, backup format version) no longer matches the code
+  - a doc mentions an `npm run` script that doesn't exist
+
+  When it fails, fix the doc, not the test. It only checks names and numbers, so prose still needs a manual look.
 
 ## Known gotchas (already debugged once here — don't rediscover)
 - **Drizzle's `useLiveQuery` only re-subscribes to changes on a query's primary `FROM` table.** A query that aggregates from a *different* table via a raw SQL subquery (like the deck word-counts pulling from `words` while selecting `FROM decks`) will never auto-refresh when that other table changes. See `useDecksWithCounts.ts` for the manual multi-table-watch workaround using `addDatabaseChangeListener` directly.

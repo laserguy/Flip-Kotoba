@@ -152,6 +152,99 @@ describe('wordUseCases.getDueWords', () => {
   });
 });
 
+describe('wordUseCases.getDueCounts', () => {
+  async function createWords(createWord: ReturnType<typeof setup>['createWord'], deckId: number, count: number) {
+    const created = [];
+    for (let i = 0; i < count; i++) {
+      created.push(await createWord({ deckId, furigana: `ことば${i}`, englishMeaning: `word ${i}` }));
+    }
+    return created;
+  }
+
+  it('counts fresh words as due in both directions', async () => {
+    const { createWord, getDueCounts } = setup();
+    await createWords(createWord, 1, 3);
+
+    expect(await getDueCounts(1, new Date())).toEqual({ jpToEn: 3, enToJp: 3 });
+  });
+
+  it('keeps every word due in EN→JP after the whole deck is finished in JP→EN', async () => {
+    // Regression: finishing one direction first must leave the other one untouched.
+    const { createWord, recordSwipe, getDueCounts, getDueWords } = setup();
+    const words = await createWords(createWord, 1, 24);
+    const now = new Date();
+    for (const word of words) await recordSwipe(word.id, 'jpToEn', 'right', now);
+
+    expect(await getDueCounts(1, now)).toEqual({ jpToEn: 0, enToJp: 24 });
+    expect((await getDueWords(1, 'enToJp', now)).map((word) => word.id).sort()).toEqual(
+      words.map((word) => word.id).sort(),
+    );
+  });
+
+  it('keeps every word due in JP→EN after the whole deck is finished in EN→JP', async () => {
+    const { createWord, recordSwipe, getDueCounts } = setup();
+    const words = await createWords(createWord, 1, 5);
+    const now = new Date();
+    for (const word of words) await recordSwipe(word.id, 'enToJp', 'right', now);
+
+    expect(await getDueCounts(1, now)).toEqual({ jpToEn: 5, enToJp: 0 });
+  });
+
+  it('reports zero in both directions once both are finished for the day', async () => {
+    const { createWord, recordSwipe, getDueCounts } = setup();
+    const words = await createWords(createWord, 1, 2);
+    const now = new Date();
+    for (const word of words) {
+      await recordSwipe(word.id, 'jpToEn', 'right', now);
+      await recordSwipe(word.id, 'enToJp', 'right', now);
+    }
+
+    expect(await getDueCounts(1, now)).toEqual({ jpToEn: 0, enToJp: 0 });
+  });
+
+  it('counts a word only in the direction where it is due', async () => {
+    const { createWord, recordSwipe, getDueCounts } = setup();
+    const [knownInJpToEn, missedInJpToEn] = await createWords(createWord, 1, 2);
+    const now = new Date();
+    await recordSwipe(knownInJpToEn.id, 'jpToEn', 'right', now);
+    await recordSwipe(missedInJpToEn.id, 'jpToEn', 'left', now);
+
+    // The missed word drops to box 1, which is due again the same day.
+    expect(await getDueCounts(1, now)).toEqual({ jpToEn: 1, enToJp: 2 });
+  });
+
+  it('does not count a word in a direction paused by mastery', async () => {
+    const { createWord, recordSwipe, getDueCounts } = setup();
+    const [word] = await createWords(createWord, 1, 1);
+    for (let i = 0; i < 10; i++) await recordSwipe(word.id, 'jpToEn', 'right', new Date('2026-01-01'));
+
+    expect(await getDueCounts(1, new Date())).toEqual({ jpToEn: 0, enToJp: 1 });
+  });
+
+  it('counts a word in both directions again once both are mastered', async () => {
+    const { createWord, recordSwipe, getDueCounts } = setup();
+    const [word] = await createWords(createWord, 1, 1);
+    for (let i = 0; i < 10; i++) await recordSwipe(word.id, 'jpToEn', 'right', new Date('2026-01-01'));
+    for (let i = 0; i < 10; i++) await recordSwipe(word.id, 'enToJp', 'right', new Date('2026-01-01'));
+
+    expect(await getDueCounts(1, new Date())).toEqual({ jpToEn: 1, enToJp: 1 });
+  });
+
+  it('ignores words in other decks', async () => {
+    const { createWord, getDueCounts } = setup();
+    await createWords(createWord, 1, 2);
+    await createWords(createWord, 2, 4);
+
+    expect(await getDueCounts(1, new Date())).toEqual({ jpToEn: 2, enToJp: 2 });
+  });
+
+  it('reports zero for an empty deck', async () => {
+    const { getDueCounts } = setup();
+
+    expect(await getDueCounts(1, new Date())).toEqual({ jpToEn: 0, enToJp: 0 });
+  });
+});
+
 describe('wordUseCases.moveToMemorized / revertFromMemorized', () => {
   it('moves a word into a lazily-created memorized deck, remembering its origin', async () => {
     const { createWord, moveToMemorized, deckRepository } = setup();

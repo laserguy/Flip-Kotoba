@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
-import { deleteWord, getWordById, revertFromMemorized } from '../composition/container';
+import { deleteWord, getWordById, revertFromMemorized, speakWord } from '../composition/container';
 import type { Word } from '../domain/entities/Word';
 import HeaderMenu, { type HeaderMenuItem } from '../components/HeaderMenu';
 import { useTheme } from '../theme/useTheme';
@@ -85,7 +85,18 @@ export default function WordDetailScreen({ route, navigation }: Props) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.headword}>{word.kanji || word.furigana}</Text>
+      <View style={styles.headwordRow}>
+        <Text style={styles.headword}>{word.kanji || word.furigana}</Text>
+        <Pressable
+          style={styles.speakButton}
+          onPress={() => speakWord(word).catch((error) => console.warn('Speak failed:', error))}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Play pronunciation"
+        >
+          <Text style={styles.speakButtonText}>🔊</Text>
+        </Pressable>
+      </View>
       {word.kanji ? <Text style={styles.furigana}>{word.furigana}</Text> : null}
 
       <View style={styles.body}>
@@ -110,7 +121,19 @@ function createStyles(colors: ThemeColors) {
     content: { padding: 24 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background },
     missingText: { fontSize: 15, color: colors.textSecondary, textAlign: 'center' },
+    headwordRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     headword: { fontSize: 40, fontWeight: '700', color: colors.textPrimary },
+    speakButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    speakButtonText: { fontSize: 16 },
     furigana: { fontSize: 18, color: colors.textSecondary, marginTop: 4 },
     body: { marginTop: 24, gap: 12 },
     row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

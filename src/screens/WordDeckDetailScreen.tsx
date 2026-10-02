@@ -1,12 +1,12 @@
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
 import type { RootStackParamList } from '../types/navigation';
-import { getDueWords } from '../composition/container';
 import { useWordsInDeck, type WordSort } from '../infrastructure/queries/useWordsInDeck';
 import type { ReviewDirection, Word } from '../domain/entities/Word';
 import FlashcardStack from '../components/FlashcardStack';
+import { directionToggleLabel } from '../components/reviewDirectionText';
+import { useWordReviewSession } from '../hooks/useWordReviewSession';
 import { useTheme } from '../theme/useTheme';
 import type { ThemeColors } from '../theme/tokens';
 
@@ -18,10 +18,7 @@ const SORT_LABELS: Record<WordSort, string> = {
   lastReviewed: 'Recently Reviewed',
 };
 
-const DIRECTION_LABELS: Record<ReviewDirection, string> = {
-  jpToEn: 'JP → EN',
-  enToJp: 'EN → JP',
-};
+const REVIEW_DIRECTIONS: ReviewDirection[] = ['jpToEn', 'enToJp'];
 
 export default function WordDeckDetailScreen({ route, navigation }: Props) {
   const { deckId, deckName, deckKind } = route.params;
@@ -31,8 +28,10 @@ export default function WordDeckDetailScreen({ route, navigation }: Props) {
 
   const [mode, setMode] = useState<'list' | 'flashcards'>('list');
   const [sort, setSort] = useState<WordSort>('alphabetical');
-  const [direction, setDirection] = useState<ReviewDirection>('jpToEn');
-  const [dueWords, setDueWords] = useState<Word[] | null>(null);
+  const { direction, dueWords, dueCounts, startSession, switchDirection, refreshDueCounts } = useWordReviewSession(
+    deckId,
+    mode === 'flashcards',
+  );
 
   const words = useWordsInDeck(deckId, sort);
 
@@ -53,28 +52,14 @@ export default function WordDeckDetailScreen({ route, navigation }: Props) {
     });
   }, [navigation, deckId, deckName, isMemorized, styles]);
 
-  // Re-fetch today's due queue fresh each time flashcard mode is entered, or
-  // the review direction changes while already in it.
-  useFocusEffect(
-    useCallback(() => {
-      if (mode === 'flashcards') {
-        getDueWords(deckId, direction).then(setDueWords);
-      }
-    }, [mode, deckId, direction]),
-  );
-
   const onEnterFlashcards = () => {
-    getDueWords(deckId, direction).then(setDueWords);
+    startSession();
     setMode('flashcards');
   };
 
   const cycleSort = () => {
     const order: WordSort[] = ['alphabetical', 'created', 'lastReviewed'];
     setSort(order[(order.indexOf(sort) + 1) % order.length]);
-  };
-
-  const toggleDirection = () => {
-    setDirection((current) => (current === 'jpToEn' ? 'enToJp' : 'jpToEn'));
   };
 
   const openWord = (word: Word) => {
@@ -103,14 +88,29 @@ export default function WordDeckDetailScreen({ route, navigation }: Props) {
 
       {mode === 'flashcards' && !isMemorized ? (
         <>
-          <Pressable style={styles.directionButton} onPress={toggleDirection}>
-            <Text style={styles.directionButtonText}>Direction: {DIRECTION_LABELS[direction]}</Text>
-          </Pressable>
+          <View style={styles.directionToggle}>
+            {REVIEW_DIRECTIONS.map((option) => (
+              <Pressable
+                key={option}
+                style={[styles.directionOption, option === direction && styles.directionOptionActive]}
+                onPress={() => switchDirection(option)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: option === direction }}
+              >
+                <Text style={[styles.directionOptionText, option === direction && styles.directionOptionTextActive]}>
+                  {directionToggleLabel(option, dueCounts?.[option])}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           {dueWords === null ? null : (
             <FlashcardStack
               initialWords={dueWords}
               direction={direction}
+              dueCounts={dueCounts}
               onEdit={(word) => navigation.navigate('WordForm', { deckId, wordId: word.id })}
+              onSwitchDirection={switchDirection}
+              onReviewed={refreshDueCounts}
             />
           )}
         </>
@@ -162,8 +162,17 @@ function createStyles(colors: ThemeColors) {
     modeButtonTextActive: { color: colors.textPrimary },
     sortButton: { alignSelf: 'flex-end', marginRight: 16, marginBottom: 8 },
     sortButtonText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
-    directionButton: { alignSelf: 'center', marginBottom: 8 },
-    directionButtonText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+    directionToggle: { flexDirection: 'row', alignSelf: 'center', gap: 8, marginBottom: 8 },
+    directionOption: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    directionOptionActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+    directionOptionText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+    directionOptionTextActive: { color: colors.textOnAccent },
     emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background },
     emptyText: { fontSize: 16, color: colors.textSecondary, marginBottom: 16 },
     addButton: { backgroundColor: colors.accent, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 },

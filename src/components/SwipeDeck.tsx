@@ -29,9 +29,16 @@ export interface SwipeDeckProps<T> {
   onSwipe: (card: T, direction: SwipeDirection) => Promise<{ readyToMemorize: boolean; note?: string | null }>;
   renderMemorizePrompt: (card: T, dismiss: () => void) => ReactNode;
   emptyText: string;
+  // When given, shows a button under emptyText once the queue runs out.
+  emptyAction?: { label: string; onPress: () => void };
   remainingText: (count: number) => string;
   // When given, shows an edit affordance for the card currently on top.
   onEdit?: (card: T) => void;
+  // When given, shows a replay-pronunciation affordance for the card currently on top.
+  onSpeak?: (card: T) => void;
+  // Restricts the onSpeak button to only one side of the card (e.g. the side
+  // that shows the Japanese text). Omit to show it on both sides.
+  speakSide?: 'front' | 'back';
 }
 
 // A missed card goes back into the queue three cards later, so it comes around
@@ -49,8 +56,11 @@ export default function SwipeDeck<T extends { id: number }>({
   onSwipe,
   renderMemorizePrompt,
   emptyText,
+  emptyAction,
   remainingText,
   onEdit,
+  onSpeak,
+  speakSide,
 }: SwipeDeckProps<T>) {
   const [queue, setQueue] = useState<T[]>(() => cards);
   const [flipped, setFlipped] = useState(false);
@@ -146,6 +156,11 @@ export default function SwipeDeck<T extends { id: number }>({
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>{emptyText}</Text>
+        {emptyAction && (
+          <Pressable style={styles.emptyActionButton} onPress={emptyAction.onPress} accessibilityRole="button">
+            <Text style={styles.emptyActionText}>{emptyAction.label}</Text>
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -182,6 +197,18 @@ export default function SwipeDeck<T extends { id: number }>({
             <Text style={styles.editButtonText}>✎</Text>
           </Pressable>
         )}
+
+        {onSpeak && (speakSide === undefined || speakSide === (flipped ? 'back' : 'front')) && (
+          <Pressable
+            style={styles.speakButton}
+            onPress={() => onSpeak(current)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Play pronunciation"
+          >
+            <Text style={styles.speakButtonText}>🔊</Text>
+          </Pressable>
+        )}
       </View>
 
       <Text style={styles.hint}>Tap to flip · Swipe right = know it · Swipe left = don't know it</Text>
@@ -195,6 +222,14 @@ function createStyles(colors: ThemeColors) {
     container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: colors.background },
     emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background },
     emptyText: { fontSize: 16, color: colors.textSecondary, textAlign: 'center' },
+    emptyActionButton: {
+      marginTop: 16,
+      backgroundColor: colors.accent,
+      borderRadius: 8,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+    },
+    emptyActionText: { color: colors.textOnAccent, fontSize: 16, fontWeight: '600' },
     cardWrapper: { width: '90%' },
     card: {
       width: '100%',
@@ -248,6 +283,26 @@ function createStyles(colors: ThemeColors) {
       elevation: 3,
     },
     editButtonText: { fontSize: 16, color: colors.accent },
+    speakButton: {
+      position: 'absolute',
+      top: -10,
+      left: 4,
+      zIndex: 20,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
+    },
+    speakButtonText: { fontSize: 16 },
     noteBanner: {
       position: 'absolute',
       top: 12,

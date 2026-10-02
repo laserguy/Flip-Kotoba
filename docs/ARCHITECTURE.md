@@ -22,6 +22,10 @@ Leitner box system, boxes 1–5. `BOX_INTERVAL_DAYS` (`src/domain/constants.ts`)
 - **left** (don't know) → box resets to 1, streak resets to 0, due immediately.
 - **right** (know it) → box +1 (capped at 5), streak +1 (capped at 10); `readyToMemorize = streak >= MEMORIZE_STREAK_THRESHOLD (10)`.
 
+### Review directions (`src/domain/reviewDirection.ts`)
+
+`otherDirection()`, the `DueCounts` shape (`{ jpToEn, enToJp }`), and `guidanceForEmptyQueue(current, dueCounts)`: once one direction's review queue is empty, it returns either `switchDirection` (the other direction still has words due, with the count) or `allCaughtUp`. The directions are scheduled independently, so finishing one says nothing about the other; this is what lets the review screen point the user at the other direction instead of implying they're done for the day.
+
 ### Kana normalization (`src/domain/kana.ts`)
 
 `toHiragana()` converts katakana readings to hiragana. Dictionaries conventionally give on'yomi in katakana, but this app always stores/displays readings in hiragana since katakana reads as "foreign word" to users — applied when creating kanji and when filling gaps from a dictionary lookup.
@@ -40,17 +44,19 @@ Interfaces the domain depends on; infrastructure implements them.
 | `ExampleSentenceService` | Example sentence lookup |
 | `KanjiDictionaryService` | Kanji readings/meanings/example-word lookup |
 | `KanjiPageScanner` / `VocabPageScanner` | Vision-model page scanning → structured entries |
+| `PronunciationService` | Speak Japanese text aloud (`speak(text, 'ja-JP')`) |
 
 ## Use cases (`src/domain/usecases/*.ts`)
 
 One file per feature area, each exporting the operations screens call through the composition root:
 
 - **`deckUseCases`** — create/rename (`updateDeck`) share name validation (trim/length cap) and reject a case-insensitive duplicate name within the same content type (word decks and kanji decks may reuse a name), `getDeck`, delete.
-- **`wordUseCases`** — create/update (validates JP example sentence requires an EN translation), delete, get, `getDueWords`, `recordSwipe` (applies SRS, flags `readyToMemorize` only once *both* directions are mastered, plus a one-shot `justMasteredDirection` notice), move/revert memorized.
+- **`wordUseCases`** — create/update (validates JP example sentence requires an EN translation), delete, get, `getDueWords`, `getDueCounts` (due count per direction, built on the same `getDue` so it always matches what a review session shows, pause rule included), `recordSwipe` (applies SRS, flags `readyToMemorize` only once *both* directions are mastered, plus a one-shot `justMasteredDirection` notice), move/revert memorized.
 - **`kanjiUseCases`** — same shape as word use cases, single-direction SRS, hiragana-normalizes readings on create.
 - **`backupUseCases`** — `createBackup`/`restoreBackup`; restore does strict validation of untrusted JSON and rejects newer format versions than this app understands.
 - **`wordLookupUseCases`** / **`kanjiLookupUseCases`** — dictionary-backed autofill for the add-word/add-kanji forms and scan review screens.
 - **`vocabScanUseCases`** / **`kanjiScanUseCases`** — drive a page scan through the vision model and normalize results.
+- **`pronunciationUseCases`** — `speakWord` delegates a word's `furigana` to `PronunciationService`. Words only for now; kanji pronunciation (via `onReadings`/`kunReadings`) is a deliberate follow-up, not yet implemented.
 
 Each has a matching `.test.ts` run against the in-memory fakes in `src/domain/testing/fakes.ts` (extend this file, not a real DB, when adding a new port).
 
@@ -59,6 +65,7 @@ Each has a matching `.test.ts` run against the in-memory fakes in `src/domain/te
 - **Repositories** (`repositories/Drizzle*Repository.ts`) — one per domain port, backed by Drizzle over `expo-sqlite`. `DrizzleWordRepository` shares direction-agnostic logic between `jpToEn`/`enToJp` via a column map. `DrizzleBackupRepository.replaceAll()` runs in a transaction and remaps temp IDs to real IDs on restore.
 - **Vision models** (`services/vision/`) — `MultiProviderVisionModel` reads the active provider from secure storage and routes to `OpenAiVisionModel` / `AnthropicVisionModel` / `GeminiVisionModel`. Each adapter authors a provider-neutral JSON Schema extraction spec; `GeminiVisionModel`'s `toGeminiSchema()` converts it to Gemini's OpenAPI-subset dialect. HTTP failures funnel through `mapHttpErrorToScanError.ts` into the domain's `ScanErrors` taxonomy (`MissingApiKeyError`, `InvalidApiKeyError`, `RateLimitError`, `ScanUnavailableError`, `ScanFailedError`).
 - **External dictionary APIs** — `JishoDictionaryLookupService` (jisho.org), `TatoebaExampleSentenceService` (tatoeba.org), `KanjiApiDictionaryService` (kanjiapi.dev).
+- **`ExpoSpeechPronunciationService`** — on-device text-to-speech via `expo-speech` (no network call, no API key). Calls `Speech.stop()` before each `Speech.speak()` so overlapping utterances from rapid card swipes don't queue up.
 - **Secure-store-backed settings** (`services/*Store.ts`) — API keys + active provider (`secureApiKeyStore`), theme preference (`themePreferenceStore`), onboarding-seen flag (`onboardingStore`), all via `expo-secure-store`.
 - **`kanjiReadingsMigration.ts`** — one-time backfill converting legacy katakana kanji readings to hiragana, gated by a secure-store flag so it runs once per install.
 
@@ -81,11 +88,13 @@ Migrations live in `drizzle/*.sql`, applied via `drizzle-orm/expo-sqlite/migrato
 ## Presentation layer
 
 - **Screens** (`src/screens/`) — deck list/detail/form, word detail/form, kanji detail, scan-vocab and scan-kanji (camera → vision model → editable review → bulk create), settings (provider/API key, theme, backup export/import), onboarding.
-- **`SwipeDeck.tsx`** (`src/components/`) — the shared flashcard gesture engine used for both words and kanji. Pan gesture drives `translateX`/rotation via reanimated; past a threshold (`0.28 * screen width`) the card animates off and `onSwipe` fires; a tap (raced against the pan, not chained) flips the card. A left-swiped (missed) card is requeued 3 positions back rather than to the end, so it resurfaces soon but not immediately.
+- **`SwipeDeck.tsx`** (`src/components/`) — the shared flashcard gesture engine used for both words and kanji. Pan gesture drives `translateX`/rotation via reanimated; past a threshold (`0.28 * screen width`) the card animates off and `onSwipe` fires; a tap (raced against the pan, not chained) flips the card. A left-swiped (missed) card is requeued 3 positions back rather than to the end, so it resurfaces soon but not immediately. Optional `onSpeak`/`onEdit` render absolutely-positioned buttons outside the `GestureDetector` so they don't fight the pan/tap gesture; `onSpeak` can be restricted to one side of the card via `speakSide` (`FlashcardStack` uses this to show a manual pronunciation button only on the Japanese (front) side during `jpToEn` review — pronunciation is deliberately manual-only and `jpToEn`-only, not auto-played and not offered for `enToJp`).
 - **Navigation** (`src/navigation/RootNavigator.tsx`) — native-stack, several screens presented as modals.
+- **`FlashcardStack.tsx`** + **`useWordReviewSession`** (`src/hooks/`) — the word review session. The hook owns the review direction, that direction's due queue and both directions' due counts; the deck screen's direction toggle shows those counts (`JP → EN (n)`). Switching direction or re-entering review clears the queue first so `SwipeDeck` remounts with a fresh one (it only seeds its queue on mount), and a request-id guard drops slow responses for a direction the user already left. When the queue empties, `FlashcardStack` uses `guidanceForEmptyQueue` to show how many words are due in the other direction, with a switch button (`SwipeDeck`'s optional `emptyAction`). Display strings for directions live in `src/components/reviewDirectionText.ts`.
 - **Theme** (`src/theme/`) — `ThemePreference` (`system`/`light`/`dark`) resolved against the OS scheme, persisted via `themePreferenceStore`, mapped to both app-level tokens and React Navigation's theme.
 
 ## Testing approach
 
 - Domain/use-case logic is tested against the in-memory fakes in `src/domain/testing/fakes.ts` — no real database. This is the required pattern for all new use cases (see `AGENTS.md`).
-- Infrastructure code that does anything non-trivial in SQL gets a real-database test: `src/infrastructure/repositories/*.diagnostic.test.ts` spin up `better-sqlite3`, replay the actual `drizzle/*.sql` migrations, and exercise the repository against real constraints (FKs, the single-memorized-deck unique index, check constraints) — because a real due-date query bug once slipped past fake-only tests. Follow this pattern for new schema-sensitive queries.
+- Infrastructure code that does anything non-trivial in SQL gets a real-database test: `src/infrastructure/repositories/*.diagnostic.test.ts` spin up `better-sqlite3`, replay the actual `drizzle/*.sql` migrations, and exercise the repository against real constraints (FKs, the single-memorized-deck unique index, check constraints) — because a real due-date query bug once slipped past fake-only tests. Follow this pattern for new schema-sensitive queries. `DrizzleWordRepository.diagnostic.test.ts` goes one step further: it `jest.mock`s `db/client` with a `better-sqlite3` Drizzle instance so the real repository class runs, instead of a hand-copied query.
+- Presentation hooks with non-trivial state (e.g. `useWordReviewSession`) are tested with `@testing-library/react-native`'s `renderHook`, mocking the composition root. Gesture/animation UI is verified on-device.

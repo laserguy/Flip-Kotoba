@@ -3,6 +3,7 @@ import type { WordRepository } from '../repositories/WordRepository';
 import type { ReviewDirection, WordInput } from '../entities/Word';
 import { applySwipe } from '../srs';
 import { MEMORIZE_STREAK_THRESHOLD } from '../constants';
+import { otherDirection, type DueCounts } from '../reviewDirection';
 
 function normalize(input: WordInput): WordInput {
   const kanji = input.kanji?.trim() || null;
@@ -23,10 +24,6 @@ function normalize(input: WordInput): WordInput {
   };
 }
 
-function otherDirection(direction: ReviewDirection): ReviewDirection {
-  return direction === 'jpToEn' ? 'enToJp' : 'jpToEn';
-}
-
 export function createWordUseCases(wordRepository: WordRepository, deckRepository: DeckRepository) {
   return {
     createWord: async (input: WordInput) => wordRepository.create(normalize(input)),
@@ -35,6 +32,16 @@ export function createWordUseCases(wordRepository: WordRepository, deckRepositor
     getWordById: (id: number) => wordRepository.findById(id),
     getDueWords: (deckId: number, direction: ReviewDirection, now: Date = new Date()) =>
       wordRepository.getDue(deckId, direction, now),
+
+    // Reuses getDue rather than a separate count query so the numbers always
+    // match the cards a review session would actually show (pause rule included).
+    getDueCounts: async (deckId: number, now: Date = new Date()): Promise<DueCounts> => {
+      const [jpToEn, enToJp] = await Promise.all([
+        wordRepository.getDue(deckId, 'jpToEn', now),
+        wordRepository.getDue(deckId, 'enToJp', now),
+      ]);
+      return { jpToEn: jpToEn.length, enToJp: enToJp.length };
+    },
 
     recordSwipe: async (
       wordId: number,

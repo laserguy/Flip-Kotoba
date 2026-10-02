@@ -1,28 +1,43 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import type { ReviewDirection, Word } from '../domain/entities/Word';
-import { moveToMemorized, recordSwipe } from '../composition/container';
+import { moveToMemorized, recordSwipe, speakWord } from '../composition/container';
 import { useTheme } from '../theme/useTheme';
 import type { ThemeColors } from '../theme/tokens';
+import { guidanceForEmptyQueue, type DueCounts } from '../domain/reviewDirection';
 import SwipeDeck from './SwipeDeck';
 import MemorizePrompt from './MemorizePrompt';
-
-const DIRECTION_LABEL: Record<ReviewDirection, string> = {
-  jpToEn: 'JP → EN',
-  enToJp: 'EN → JP',
-};
+import { DIRECTION_LABELS, emptyQueueText, switchDirectionLabel } from './reviewDirectionText';
 
 export default function FlashcardStack({
   initialWords,
   direction,
+  dueCounts,
   onEdit,
+  onSwitchDirection,
+  onReviewed,
 }: {
   initialWords: Word[];
   direction: ReviewDirection;
+  dueCounts: DueCounts | null;
   onEdit: (word: Word) => void;
+  onSwitchDirection: (direction: ReviewDirection) => void;
+  // Called after each swipe has been saved, so due counts can be refreshed.
+  onReviewed: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const emptyGuidance = dueCounts ? guidanceForEmptyQueue(direction, dueCounts) : null;
+  const emptyAction =
+    emptyGuidance?.kind === 'switchDirection'
+      ? {
+          label: switchDirectionLabel(emptyGuidance.direction),
+          onPress: () => onSwitchDirection(emptyGuidance.direction),
+        }
+      : undefined;
+
+  const speak = (word: Word) => speakWord(word).catch((error) => console.warn('Speak failed:', error));
 
   const renderJapanese = (word: Word) => (
     <>
@@ -42,15 +57,19 @@ export default function FlashcardStack({
   return (
     <SwipeDeck<Word>
       cards={initialWords}
-      emptyText="All caught up! No words due right now."
+      emptyText={emptyGuidance ? emptyQueueText(direction, emptyGuidance) : 'All caught up! No words due right now.'}
+      emptyAction={emptyAction}
       remainingText={(count) => `${count} word${count === 1 ? '' : 's'} left today`}
       onEdit={onEdit}
+      onSpeak={direction === 'jpToEn' ? speak : undefined}
+      speakSide={direction === 'jpToEn' ? 'front' : undefined}
       onSwipe={async (word, swipeDirection) => {
         const { readyToMemorize, justMasteredDirection } = await recordSwipe(word.id, direction, swipeDirection);
+        onReviewed();
         return {
           readyToMemorize,
           note: justMasteredDirection
-            ? `Mastered ${DIRECTION_LABEL[justMasteredDirection]} — keep going on the other direction!`
+            ? `Mastered ${DIRECTION_LABELS[justMasteredDirection]} — keep going on the other direction!`
             : null,
         };
       }}

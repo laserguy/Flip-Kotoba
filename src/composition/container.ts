@@ -11,6 +11,7 @@ import { GeminiVisionModel } from '../infrastructure/services/vision/GeminiVisio
 import { MultiProviderVisionModel } from '../infrastructure/services/vision/MultiProviderVisionModel';
 import { VisionVocabPageScanner } from '../infrastructure/services/vision/vocabExtraction';
 import { VisionKanjiPageScanner } from '../infrastructure/services/vision/kanjiExtraction';
+import { ExpoSpeechPronunciationService } from '../infrastructure/services/ExpoSpeechPronunciationService';
 import { createDeckUseCases } from '../domain/usecases/deckUseCases';
 import { createWordUseCases } from '../domain/usecases/wordUseCases';
 import { createKanjiUseCases } from '../domain/usecases/kanjiUseCases';
@@ -19,6 +20,7 @@ import { createKanjiLookupUseCases } from '../domain/usecases/kanjiLookupUseCase
 import { createVocabScanUseCases } from '../domain/usecases/vocabScanUseCases';
 import { createKanjiScanUseCases } from '../domain/usecases/kanjiScanUseCases';
 import { createBackupUseCases } from '../domain/usecases/backupUseCases';
+import { createPronunciationUseCases } from '../domain/usecases/pronunciationUseCases';
 
 const deckRepository = new DrizzleDeckRepository();
 const wordRepository = new DrizzleWordRepository();
@@ -27,6 +29,7 @@ const backupRepository = new DrizzleBackupRepository();
 const dictionaryLookupService = new JishoDictionaryLookupService();
 const exampleSentenceService = new TatoebaExampleSentenceService();
 const kanjiDictionaryService = new KanjiApiDictionaryService();
+const pronunciationService = new ExpoSpeechPronunciationService();
 
 const visionModel = new MultiProviderVisionModel({
   openai: new OpenAiVisionModel(),
@@ -44,6 +47,7 @@ export const {
   deleteWord,
   getWordById,
   getDueWords,
+  getDueCounts,
   recordSwipe,
   moveToMemorized,
   revertFromMemorized,
@@ -68,3 +72,5 @@ export const { scanVocabPage } = createVocabScanUseCases(vocabPageScanner);
 export const { scanKanjiPage } = createKanjiScanUseCases(kanjiPageScanner);
 
 export const { createBackup, restoreBackup } = createBackupUseCases(backupRepository);
+
+export const { speakWord } = createPronunciationUseCases(pronunciationService);
